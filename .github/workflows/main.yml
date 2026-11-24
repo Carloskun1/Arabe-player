@@ -21,14 +21,15 @@ jobs:
           gradle-version: '8.7'
 
       - name: Compilar APK debug
+        shell: bash
         run: gradle assembleDebug --console=plain 2>&1 | tee build.log
 
       - name: Mostrar errores
-        if: failure()
+        if: always()
         run: |
           echo '### Errores de compilación' >> $GITHUB_STEP_SUMMARY
           echo '~~~' >> $GITHUB_STEP_SUMMARY
-          grep -E "^e: |What went wrong|error:" -A3 build.log | head -80 >> $GITHUB_STEP_SUMMARY
+          grep -E "^e: |What went wrong|error:" -A3 build.log | head -80 >> $GITHUB_STEP_SUMMARY || true
           echo '~~~' >> $GITHUB_STEP_SUMMARY
 
       - uses: actions/upload-artifact@v4
