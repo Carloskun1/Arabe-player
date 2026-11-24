@@ -1,6 +1,11 @@
 package com.dcm.music.ui
 
 import android.Manifest
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
@@ -32,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
@@ -105,6 +111,27 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
     }
     LaunchedEffect(granted) { if (granted) vm.refresh() }
 
+    // Mensajes de la app (descargas, errores de reproducción)
+    LaunchedEffect(Unit) {
+        vm.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+    }
+
+    // Al terminar una descarga se vuelve a escanear la biblioteca
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                vm.refreshDelayed()
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
     val songs by vm.songs.collectAsState()
     val loading by vm.loading.collectAsState()
     val ps by vm.playerState.collectAsState()
@@ -113,6 +140,7 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
     val playlists by vm.playlists.collectAsState()
     val favIds by vm.favoriteIds.collectAsState()
     val sortBy by vm.sortBy.collectAsState()
+    val yt by vm.yt.collectAsState()
     val favSet = remember(favIds) { favIds.toSet() }
 
     var playerOpen by remember { mutableStateOf(false) }
@@ -172,6 +200,7 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
             PermissionScreen {
                 val perms = mutableListOf(audioPermission)
                 if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+                if (Build.VERSION.SDK_INT <= 28) perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 launcher.launch(perms.toTypedArray())
             }
         } else {
@@ -227,7 +256,20 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                             onOpenLibrary = { go("library") }
                         )
                     }
-                    composable("search") { SearchScreen(songs, playlists, ps.mediaId, vm::play) }
+                    composable("search") {
+                        SearchScreen(
+                            songs = songs,
+                            playlists = playlists,
+                            currentId = ps.mediaId,
+                            onPlay = vm::play,
+                            yt = yt,
+                            onYtSearch = vm::searchYoutube,
+                            onYtPlay = vm::playYoutube,
+                            onYtDownload = vm::downloadYoutube,
+                            onYtQueue = vm::addYoutubeToQueue,
+                            onYtNext = vm::playYoutubeNext
+                        )
+                    }
                     composable("library") {
                         LibraryScreen(
                             songs = songs,
