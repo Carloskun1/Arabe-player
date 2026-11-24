@@ -1,6 +1,12 @@
-# DCM MUSIC — Fase 2 (v1.1.0)
+# DCM MUSIC — Fase 4: YouTube (v1.2.0)
 
 Reproductor de música Android (Kotlin + Jetpack Compose + Media3). Tu música, tu universo.
+
+## Novedades de la Fase 4 (YouTube, solo audio)
+- Pestaña **Buscar → YouTube**: busca y reproduce el audio (segundo plano, notificación y cola incluidos).
+- **Descargar audio**: menú ⋮ de cada resultado; se guarda en Música/DCM MUSIC y aparece en tu biblioteca.
+- Usa la librería NewPipeExtractor (GPL-3.0). Si YouTube cambia su sistema y deja de funcionar, hay que actualizar la versión en `app/build.gradle.kts`.
+- Uso personal: respeta los derechos de autor y los términos de YouTube.
 
 ## Novedades de la Fase 2
 - Favoritos (corazón en el reproductor y menú ⋮ de cada canción).
