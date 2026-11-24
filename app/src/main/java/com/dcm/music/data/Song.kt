@@ -11,10 +11,13 @@ data class Song(
     val durationMs: Long,
     val uri: Uri,
     val artUri: Uri,
-    val dateAdded: Long
+    val dateAdded: Long,
+    val folder: String
 )
 
 data class Group(val name: String, val songs: List<Song>)
+
+data class PlaylistUi(val id: Long, val name: String, val songs: List<Song>)
 
 enum class SortBy(val label: String) {
     NAME("Nombre"),
@@ -31,3 +34,5 @@ fun sortSongs(list: List<Song>, by: SortBy): List<Song> = when (by) {
     SortBy.DURATION -> list.sortedBy { it.durationMs }
     SortBy.DATE -> list.sortedByDescending { it.dateAdded }
 }
+
+fun folderName(path: String): String = path.substringAfterLast('/').ifBlank { "Raíz" }

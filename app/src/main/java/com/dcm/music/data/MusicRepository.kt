@@ -20,7 +20,8 @@ class MusicRepository(private val context: Context) {
                 MediaStore.Audio.Media.ALBUM,
                 MediaStore.Audio.Media.ALBUM_ID,
                 MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.DATE_ADDED
+                MediaStore.Audio.Media.DATE_ADDED,
+                MediaStore.Audio.Media.DATA
             )
             val selection =
                 "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 10000"
@@ -35,6 +36,7 @@ class MusicRepository(private val context: Context) {
                 val albumIdCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val durCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                 val dateCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+                val dataCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
                 while (c.moveToNext()) {
                     val id = c.getLong(idCol)
                     val albumId = c.getLong(albumIdCol)
@@ -50,7 +52,8 @@ class MusicRepository(private val context: Context) {
                             durationMs = c.getLong(durCol),
                             uri = ContentUris.withAppendedId(collection, id),
                             artUri = ContentUris.withAppendedId(artBase, albumId),
-                            dateAdded = c.getLong(dateCol)
+                            dateAdded = c.getLong(dateCol),
+                            folder = c.getString(dataCol).orEmpty().substringBeforeLast('/', "")
                         )
                     )
                 }
