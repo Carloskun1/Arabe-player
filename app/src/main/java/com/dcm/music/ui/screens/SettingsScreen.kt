@@ -24,7 +24,7 @@ import com.dcm.music.ui.theme.DcmGray
 import com.dcm.music.ui.theme.DcmNeon
 
 @Composable
-fun SettingsScreen(songCount: Int, loading: Boolean, onRescan: () -> Unit) {
+fun SettingsScreen(songCount: Int, loading: Boolean, onRescan: () -> Unit, onClearRecents: () -> Unit) {
     Column(
         Modifier
             .verticalScroll(rememberScrollState())
@@ -53,6 +53,21 @@ fun SettingsScreen(songCount: Int, loading: Boolean, onRescan: () -> Unit) {
             }
         }
 
+        Spacer(Modifier.height(12.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onClearRecents)
+                .padding(16.dp)
+        ) {
+            Column {
+                Text("Borrar historial de reproducción", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Vacía la lista «Recientes»", color = DcmGray, fontSize = 12.sp)
+            }
+        }
+
         Spacer(Modifier.height(28.dp))
         Text("ACERCA DE", color = DcmNeon, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(Modifier.height(8.dp))
@@ -64,7 +79,7 @@ fun SettingsScreen(songCount: Int, loading: Boolean, onRescan: () -> Unit) {
                 .padding(16.dp)
         ) {
             Text("DCM MUSIC", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versión 1.0.0", color = DcmGray, fontSize = 12.sp)
+            Text("Versión 1.1.0", color = DcmGray, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Text("Desarrollado por DCM.", color = Color.White)
             Text("Tu música, tu universo.", color = DcmNeon)

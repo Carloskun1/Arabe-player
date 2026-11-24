@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,7 +61,10 @@ fun PlayerScreen(
     onPrevious: () -> Unit,
     onSeek: (Long) -> Unit,
     onShuffle: () -> Unit,
-    onRepeat: () -> Unit
+    onRepeat: () -> Unit,
+    isFavorite: Boolean,
+    onFavorite: () -> Unit,
+    onQueue: () -> Unit
 ) {
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
@@ -97,7 +102,9 @@ fun PlayerScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.size(48.dp))
+                IconButton(onClick = onQueue) {
+                    Icon(painterResource(R.drawable.ic_queue), "Cola de reproducción", tint = Color.White)
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -127,14 +134,23 @@ fun PlayerScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text(
-                state.album,
-                color = DcmGray.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    state.album,
+                    color = DcmGray.copy(alpha = 0.7f),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onFavorite) {
+                    Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        "Favorito",
+                        tint = if (isFavorite) DcmNeon else Color.White
+                    )
+                }
+            }
 
             Spacer(Modifier.height(12.dp))
             Slider(

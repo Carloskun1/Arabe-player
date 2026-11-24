@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dcm.music.data.Group
+import com.dcm.music.data.PlaylistUi
 import com.dcm.music.data.Song
 import com.dcm.music.ui.components.CoverCard
 import com.dcm.music.ui.components.SectionTitle
@@ -52,6 +53,9 @@ private fun greeting(): String {
 @Composable
 fun HomeScreen(
     songs: List<Song>,
+    favorites: List<Song>,
+    recents: List<Song>,
+    playlists: List<PlaylistUi>,
     onPlay: (List<Song>, Int) -> Unit,
     onShuffleAll: () -> Unit,
     onOpenSearch: () -> Unit,
@@ -109,6 +113,37 @@ fun HomeScreen(
                 )
             }
         } else {
+            if (recents.isNotEmpty()) {
+                item { SectionTitle("Escuchadas recientemente") }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
+                        items(recents.take(12), key = { it.id }) { s ->
+                            CoverCard(s.artUri, s.title, s.artist) { onPlay(recents, recents.indexOf(s)) }
+                        }
+                    }
+                }
+            }
+            if (favorites.isNotEmpty()) {
+                item { SectionTitle("Tus favoritas") }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
+                        items(favorites.take(12), key = { it.id }) { s ->
+                            CoverCard(s.artUri, s.title, s.artist) { onPlay(favorites, favorites.indexOf(s)) }
+                        }
+                    }
+                }
+            }
+            val playable = playlists.filter { it.songs.isNotEmpty() }
+            if (playable.isNotEmpty()) {
+                item { SectionTitle("Tus playlists") }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
+                        items(playable, key = { it.id }) { pl ->
+                            CoverCard(pl.songs.first().artUri, pl.name, "${pl.songs.size} canciones") { onPlay(pl.songs, 0) }
+                        }
+                    }
+                }
+            }
             item { SectionTitle("Añadidas recientemente") }
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
