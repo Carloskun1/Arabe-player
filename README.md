@@ -1,8 +1,15 @@
-# DCM MUSIC — Fase 1
+# DCM MUSIC — Fase 2 (v1.1.0)
 
 Reproductor de música Android (Kotlin + Jetpack Compose + Media3). Tu música, tu universo.
 
-## Qué incluye la Fase 1
+## Novedades de la Fase 2
+- Favoritos (corazón en el reproductor y menú ⋮ de cada canción).
+- Playlists: crear, renombrar, eliminar, añadir/quitar canciones y reordenar (guardado automático con Room).
+- Historial «Recientes» (últimas 50), cola de reproducción (saltar, quitar, «reproducir a continuación», «añadir a la cola»).
+- Biblioteca ampliada: Carpetas, Favoritos, Recientes, Playlists y Descargas. El orden elegido se recuerda (DataStore).
+- Búsqueda también en playlists y carpetas.
+
+## Qué incluía la Fase 1
 - Escaneo automático de la música del dispositivo (MP3, FLAC, WAV, AAC, M4A, OGG…).
 - Reproducción en segundo plano con notificación multimedia, pantalla de bloqueo, botones Bluetooth y Audio Focus (Media3 + MediaSession).
 - Inicio (saludo dinámico, recientes, DCM Selection, artistas, álbumes), Búsqueda con filtros, Biblioteca (canciones con orden, artistas, álbumes).
@@ -23,5 +30,4 @@ Edita o sustituye archivos en GitHub y haz *commit*: se compila un APK nuevo aut
 Para subir de versión cambia `versionCode` y `versionName` en `app/build.gradle.kts`.
 
 ## Próximas fases
-- Fase 2: favoritos, playlists, recientes (Room + DataStore), cola de reproducción.
 - Fase 3: ecualizador real, letras LRC, visualizador, temporizador, colores dinámicos, ajustes avanzados.
