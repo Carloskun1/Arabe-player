@@ -14,6 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -95,13 +104,31 @@ fun DcmChip(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+class SongActions(
+    val favorites: Set<Long>,
+    val onToggleFavorite: (Song) -> Unit,
+    val onAddToPlaylist: (Song) -> Unit,
+    val onPlayNext: (Song) -> Unit,
+    val onAddToQueue: (Song) -> Unit
+)
+
+val LocalSongActions = compositionLocalOf<SongActions?> { null }
+
 @Composable
-fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
+fun SongRow(
+    song: Song,
+    isCurrent: Boolean,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    val actions = LocalSongActions.current
+    var menuOpen by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Cover(song.artUri, Modifier.size(50.dp), 10.dp)
@@ -122,7 +149,40 @@ fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Text(formatTime(song.durationMs), color = DcmGray, fontSize = 12.sp)
+        if (trailing != null) {
+            trailing()
+        } else {
+            Text(formatTime(song.durationMs), color = DcmGray, fontSize = 12.sp)
+            if (actions != null) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, "Más opciones", tint = DcmGray)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(if (song.id in actions.favorites) "Quitar de favoritos" else "Añadir a favoritos")
+                            },
+                            onClick = { menuOpen = false; actions.onToggleFavorite(song) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Añadir a una playlist") },
+                            onClick = { menuOpen = false; actions.onAddToPlaylist(song) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Reproducir a continuación") },
+                            onClick = { menuOpen = false; actions.onPlayNext(song) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Añadir a la cola") },
+                            onClick = { menuOpen = false; actions.onAddToQueue(song) }
+                        )
+                    }
+                }
+            } else {
+                Spacer(Modifier.width(12.dp))
+            }
+        }
     }
 }
 
