@@ -129,9 +129,50 @@ class PlayerConnection(context: Context) {
         }
     }
 
+    fun queue(): List<QueueItem> {
+        val c = controller ?: return emptyList()
+        return (0 until c.mediaItemCount).map { i ->
+            val item = c.getMediaItemAt(i)
+            QueueItem(
+                index = i,
+                mediaId = item.mediaId,
+                title = item.mediaMetadata.title?.toString().orEmpty(),
+                artist = item.mediaMetadata.artist?.toString().orEmpty()
+            )
+        }
+    }
+
+    fun currentIndex(): Int = controller?.currentMediaItemIndex ?: 0
+
+    fun jumpTo(index: Int) {
+        val c = controller ?: return
+        if (index in 0 until c.mediaItemCount) {
+            c.seekToDefaultPosition(index)
+            c.play()
+        }
+    }
+
+    fun removeFromQueue(index: Int) {
+        val c = controller ?: return
+        if (index in 0 until c.mediaItemCount) c.removeMediaItem(index)
+    }
+
+    fun addToQueue(song: Song) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) play(listOf(song), 0) else c.addMediaItem(song.toMediaItem())
+    }
+
+    fun playNext(song: Song) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) play(listOf(song), 0)
+        else c.addMediaItem(c.currentMediaItemIndex + 1, song.toMediaItem())
+    }
+
     fun release() {
         controller?.removeListener(listener)
         controller?.release()
         controller = null
     }
 }
+
+data class QueueItem(val index: Int, val mediaId: String, val title: String, val artist: String)
