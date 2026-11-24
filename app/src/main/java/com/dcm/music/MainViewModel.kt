@@ -1,6 +1,10 @@
 package com.dcm.music
 
 import android.app.Application
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dcm.music.data.MusicRepository
@@ -13,9 +17,17 @@ import com.dcm.music.data.db.FavoriteEntity
 import com.dcm.music.data.db.PlaylistEntity
 import com.dcm.music.data.db.PlaylistSongEntity
 import com.dcm.music.data.db.RecentEntity
+import com.dcm.music.data.yt.YouTubeRepository
+import com.dcm.music.data.yt.YtSearchState
+import com.dcm.music.data.yt.YtVideo
 import com.dcm.music.playback.PlayerConnection
 import com.dcm.music.playback.QueueItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -73,7 +85,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val sortBy: StateFlow<SortBy> =
         prefs.sort.stateIn(viewModelScope, SharingStarted.Eagerly, SortBy.NAME)
 
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    private val _yt = MutableStateFlow(YtSearchState())
+    val yt: StateFlow<YtSearchState> = _yt.asStateFlow()
+
     init {
+        viewModelScope.launch { player.errors.collect { _messages.emit(it) } }
         viewModelScope.launch {
             while (isActive) {
                 delay(500)
@@ -170,6 +189,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val moved = ids.removeAt(from)
         ids.add(to, moved)
         viewModelScope.launch { dao.reorder(playlistId, ids) }
+    }
+
+    // YouTube (solo audio)
+    fun searchYoutube(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            _yt.value = YtSearchState(query = query, loading = true)
+            try {
+                val results = withContext(Dispatchers.IO) { YouTubeRepository.search(query) }
+                _yt.value = YtSearchState(query = query, results = results, searched = true)
+            } catch (e: Exception) {
+                _yt.value = YtSearchState(
+                    query = query,
+                    error = "No se pudo buscar en YouTube. Revisa tu conexión a internet.",
+                    searched = true
+                )
+            }
+        }
+    }
+
+    fun playYoutube(list: List<YtVideo>, index: Int) { player.playYoutube(list, index) }
+    fun addYoutubeToQueue(video: YtVideo) { player.addYoutubeToQueue(video) }
+    fun playYoutubeNext(video: YtVideo) { player.playYoutubeNext(video) }
+
+    fun downloadYoutube(video: YtVideo) {
+        viewModelScope.launch {
+            _messages.emit("Preparando descarga…")
+            try {
+                val audio = withContext(Dispatchers.IO) { YouTubeRepository.resolveAudio(video.id) }
+                val ext = audio.format?.suffix ?: "m4a"
+                val safeName = video.title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().take(80)
+                val request = DownloadManager.Request(Uri.parse(audio.content))
+                    .setTitle(video.title)
+                    .setDescription("DCM MUSIC")
+                    .addRequestHeader("User-Agent", YouTubeRepository.USER_AGENT)
+                    .setMimeType(audio.format?.mimeType ?: "audio/mp4")
+                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "DCM MUSIC/$safeName.$ext")
+                val manager = getApplication<Application>().getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                manager.enqueue(request)
+                _messages.emit("Descargando «${video.title}». Se guardará en Música/DCM MUSIC")
+            } catch (e: Exception) {
+                _messages.emit("No se pudo descargar: ${e.message ?: "error desconocido"}")
+            }
+        }
+    }
+
+    /** Se llama cuando termina una descarga: espera a que Android indexe el archivo y reescanea. */
+    fun refreshDelayed() {
+        viewModelScope.launch {
+            delay(2500)
+            refresh()
+        }
     }
 
     // Preferencias
