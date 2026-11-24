@@ -7,10 +7,16 @@ import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.dcm.music.data.Song
+import com.dcm.music.data.yt.YtVideo
+import com.dcm.music.data.yt.toMediaItem
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,7 +57,20 @@ class PlayerConnection(context: Context) {
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val errors: SharedFlow<String> = _errors.asSharedFlow()
+
     private val listener = object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) {
+            _errors.tryEmit("No se pudo reproducir esta canción")
+            val c = controller ?: return
+            if (c.hasNextMediaItem()) {
+                c.seekToNextMediaItem()
+                c.prepare()
+                c.play()
+            }
+        }
+
         override fun onEvents(player: Player, events: Player.Events) {
             sync()
         }
@@ -102,6 +121,25 @@ class PlayerConnection(context: Context) {
         c.setMediaItems(songs.map { it.toMediaItem() }, index.coerceIn(0, songs.lastIndex), 0L)
         c.prepare()
         c.play()
+    }
+
+    fun playYoutube(videos: List<YtVideo>, index: Int) {
+        val c = controller ?: return
+        if (videos.isEmpty()) return
+        c.setMediaItems(videos.map { it.toMediaItem() }, index.coerceIn(0, videos.lastIndex), 0L)
+        c.prepare()
+        c.play()
+    }
+
+    fun addYoutubeToQueue(video: YtVideo) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) playYoutube(listOf(video), 0) else c.addMediaItem(video.toMediaItem())
+    }
+
+    fun playYoutubeNext(video: YtVideo) {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) playYoutube(listOf(video), 0)
+        else c.addMediaItem(c.currentMediaItemIndex + 1, video.toMediaItem())
     }
 
     fun togglePlay() {
