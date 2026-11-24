@@ -79,7 +79,7 @@ fun SettingsScreen(songCount: Int, loading: Boolean, onRescan: () -> Unit, onCle
                 .padding(16.dp)
         ) {
             Text("DCM MUSIC", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Text("Versión 1.1.0", color = DcmGray, fontSize = 12.sp)
+            Text("Versión 1.2.0", color = DcmGray, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Text("Desarrollado por DCM.", color = Color.White)
             Text("Tu música, tu universo.", color = DcmNeon)

@@ -27,6 +27,8 @@ import com.dcm.music.data.Group
 import com.dcm.music.data.PlaylistUi
 import com.dcm.music.data.Song
 import com.dcm.music.data.folderName
+import com.dcm.music.data.yt.YtSearchState
+import com.dcm.music.data.yt.YtVideo
 import com.dcm.music.ui.components.DcmChip
 import com.dcm.music.ui.components.SectionTitle
 import com.dcm.music.ui.components.SongRow
@@ -36,7 +38,7 @@ import com.dcm.music.ui.theme.DcmNeon
 private val filters = listOf("Todo", "Canciones", "Artistas", "Álbumes", "Playlists", "Carpetas")
 
 @Composable
-fun SearchScreen(
+fun LocalSearchContent(
     songs: List<Song>,
     playlists: List<PlaylistUi>,
     currentId: String?,
@@ -70,13 +72,6 @@ fun SearchScreen(
     }
 
     Column {
-        Text(
-            "Buscar",
-            color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp)
-        )
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -145,6 +140,43 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SearchScreen(
+    songs: List<Song>,
+    playlists: List<PlaylistUi>,
+    currentId: String?,
+    onPlay: (List<Song>, Int) -> Unit,
+    yt: YtSearchState,
+    onYtSearch: (String) -> Unit,
+    onYtPlay: (List<YtVideo>, Int) -> Unit,
+    onYtDownload: (YtVideo) -> Unit,
+    onYtQueue: (YtVideo) -> Unit,
+    onYtNext: (YtVideo) -> Unit
+) {
+    var mode by remember { mutableStateOf(0) }
+    Column {
+        Text(
+            "Buscar",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(16.dp)
+        )
+        Row(
+            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DcmChip("Mi música", mode == 0) { mode = 0 }
+            DcmChip("YouTube", mode == 1) { mode = 1 }
+        }
+        if (mode == 0) {
+            LocalSearchContent(songs, playlists, currentId, onPlay)
+        } else {
+            YoutubeSearchContent(yt, currentId, onYtSearch, onYtPlay, onYtDownload, onYtQueue, onYtNext)
         }
     }
 }
