@@ -3,6 +3,7 @@ package com.dcm.music.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,7 +31,9 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,10 +60,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dcm.music.MainViewModel
 import com.dcm.music.R
+import com.dcm.music.data.Song
+import com.dcm.music.ui.components.LocalSongActions
 import com.dcm.music.ui.components.MiniPlayer
+import com.dcm.music.ui.components.NameDialog
+import com.dcm.music.ui.components.PlaylistPickerDialog
+import com.dcm.music.ui.components.SongActions
 import com.dcm.music.ui.screens.HomeScreen
 import com.dcm.music.ui.screens.LibraryScreen
 import com.dcm.music.ui.screens.PlayerScreen
+import com.dcm.music.ui.screens.QueueScreen
 import com.dcm.music.ui.screens.SearchScreen
 import com.dcm.music.ui.screens.SettingsScreen
 import com.dcm.music.ui.screens.SoundScreen
@@ -99,10 +108,65 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
     val songs by vm.songs.collectAsState()
     val loading by vm.loading.collectAsState()
     val ps by vm.playerState.collectAsState()
+    val favorites by vm.favorites.collectAsState()
+    val recents by vm.recents.collectAsState()
+    val playlists by vm.playlists.collectAsState()
+    val favIds by vm.favoriteIds.collectAsState()
+    val sortBy by vm.sortBy.collectAsState()
+    val favSet = remember(favIds) { favIds.toSet() }
+
     var playerOpen by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    var queueVersion by remember { mutableIntStateOf(0) }
+    var pickerSong by remember { mutableStateOf<Song?>(null) }
+    var newPlaylistSong by remember { mutableStateOf<Song?>(null) }
 
     BackHandler(enabled = playerOpen) { playerOpen = false }
+    BackHandler(enabled = showQueue) { showQueue = false }
 
+    val actions = remember(favSet) {
+        SongActions(
+            favorites = favSet,
+            onToggleFavorite = { vm.toggleFavorite(it) },
+            onAddToPlaylist = { pickerSong = it },
+            onPlayNext = {
+                vm.playNext(it)
+                Toast.makeText(context, "Se reproducirá a continuación", Toast.LENGTH_SHORT).show()
+            },
+            onAddToQueue = {
+                vm.addToQueue(it)
+                Toast.makeText(context, "Añadida a la cola", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    pickerSong?.let { song ->
+        PlaylistPickerDialog(
+            playlists = playlists,
+            onPick = { pl ->
+                vm.addToPlaylist(pl.id, song)
+                Toast.makeText(context, "Añadida a ${pl.name}", Toast.LENGTH_SHORT).show()
+                pickerSong = null
+            },
+            onNew = { newPlaylistSong = song; pickerSong = null },
+            onDismiss = { pickerSong = null }
+        )
+    }
+    newPlaylistSong?.let { song ->
+        NameDialog(
+            title = "Nueva playlist",
+            initial = "",
+            confirmText = "Crear",
+            onConfirm = { name ->
+                vm.createPlaylist(name, song)
+                Toast.makeText(context, "Playlist creada", Toast.LENGTH_SHORT).show()
+                newPlaylistSong = null
+            },
+            onDismiss = { newPlaylistSong = null }
+        )
+    }
+
+    CompositionLocalProvider(LocalSongActions provides actions) {
     Box(Modifier.fillMaxSize().background(DcmBlack)) {
         if (!granted) {
             PermissionScreen {
@@ -154,16 +218,36 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                     composable("home") {
                         HomeScreen(
                             songs = songs,
+                            favorites = favorites,
+                            recents = recents,
+                            playlists = playlists,
                             onPlay = vm::play,
                             onShuffleAll = { vm.playShuffled(songs) },
                             onOpenSearch = { go("search") },
                             onOpenLibrary = { go("library") }
                         )
                     }
-                    composable("search") { SearchScreen(songs, ps.mediaId, vm::play) }
-                    composable("library") { LibraryScreen(songs, ps.mediaId, vm::play) }
+                    composable("search") { SearchScreen(songs, playlists, ps.mediaId, vm::play) }
+                    composable("library") {
+                        LibraryScreen(
+                            songs = songs,
+                            favorites = favorites,
+                            recents = recents,
+                            playlists = playlists,
+                            sort = sortBy,
+                            onSortChange = vm::setSort,
+                            currentId = ps.mediaId,
+                            onPlay = vm::play,
+                            onShuffle = vm::playShuffled,
+                            onCreatePlaylist = { vm.createPlaylist(it) },
+                            onRenamePlaylist = vm::renamePlaylist,
+                            onDeletePlaylist = vm::deletePlaylist,
+                            onRemoveFromPlaylist = vm::removeFromPlaylist,
+                            onMoveInPlaylist = vm::moveInPlaylist
+                        )
+                    }
                     composable("sound") { SoundScreen() }
-                    composable("settings") { SettingsScreen(songs.size, loading, vm::refresh) }
+                    composable("settings") { SettingsScreen(songs.size, loading, vm::refresh, vm::clearRecents) }
                 }
             }
         }
@@ -181,9 +265,29 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                 onPrevious = vm::previous,
                 onSeek = vm::seekTo,
                 onShuffle = vm::toggleShuffle,
-                onRepeat = vm::cycleRepeat
+                onRepeat = vm::cycleRepeat,
+                isFavorite = ps.mediaId?.toLongOrNull()?.let { it in favSet } ?: false,
+                onFavorite = { ps.mediaId?.toLongOrNull()?.let { vm.toggleFavoriteId(it) } },
+                onQueue = { queueVersion++; showQueue = true }
             )
         }
+
+        AnimatedVisibility(
+            visible = showQueue && ps.hasMedia,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it }
+        ) {
+            val queue = remember(ps.mediaId, queueVersion) { vm.queue() }
+            val index = remember(ps.mediaId, queueVersion) { vm.queueIndex() }
+            QueueScreen(
+                items = queue,
+                currentIndex = index,
+                onClose = { showQueue = false },
+                onJump = { vm.jumpTo(it); queueVersion++ },
+                onRemove = { vm.removeFromQueue(it); queueVersion++ }
+            )
+        }
+    }
     }
 }
 
