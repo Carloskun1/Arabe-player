@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.DcmMusic" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/dcm_black</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.DcmMusic.App</item>
+    </style>
+
+    <style name="Theme.DcmMusic.App" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/dcm_black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
