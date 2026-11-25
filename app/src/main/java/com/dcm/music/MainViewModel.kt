@@ -264,6 +264,68 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Sugerencias de YouTube mientras se escribe (como la app de YouTube). */
+    fun youtubeSuggestions(query: String) {
+        if (query.length < 3) return
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { YouTubeRepository.suggestions(query) }
+                _yt.value = _yt.value.copy(suggestions = list.take(8))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun clearYtSuggestions() {
+        _yt.value = _yt.value.copy(suggestions = emptyList())
+    }
+
+    /** Radio: reproduce canciones similares a partir de un video de YouTube. */
+    fun playYoutubeRadio(video: YtVideo) {
+        viewModelScope.launch {
+            _messages.emit("Buscando canciones similares…")
+            try {
+                val related = withContext(Dispatchers.IO) { YouTubeRepository.relatedVideos(video.id) }
+                if (related.isEmpty()) {
+                    _messages.emit("No se encontraron canciones similares.")
+                    return@launch
+                }
+                val mix = listOf(video) + related
+                player.playYoutube(mix, 0)
+                _messages.emit("Radio de «${video.title}»: ${mix.size} canciones")
+            } catch (e: Exception) {
+                _messages.emit("No se pudo crear la radio: ${e.message ?: "error desconocido"}")
+            }
+        }
+    }
+
+    /** Descarga todas las canciones de una playlist importada (función premium). */
+    fun downloadYtPlaylist(songs: List<YtSongEntity>) {
+        viewModelScope.launch {
+            _messages.emit("Descargando ${songs.size} canciones…")
+            var ok = 0
+            songs.forEach { song ->
+                try {
+                    val audio = withContext(Dispatchers.IO) { YouTubeRepository.resolveAudio(song.ytId) }
+                    val ext = audio.format?.suffix ?: "m4a"
+                    val safeName = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().take(80)
+                    val request = DownloadManager.Request(Uri.parse(audio.content))
+                        .setTitle(song.title)
+                        .setDescription("DCM MUSIC")
+                        .addRequestHeader("User-Agent", YouTubeRepository.USER_AGENT)
+                        .setMimeType(audio.format?.mimeType ?: "audio/mp4")
+                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "DCM MUSIC/$safeName.$ext")
+                    val manager = getApplication<Application>().getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    manager.enqueue(request)
+                    ok++
+                } catch (_: Exception) {
+                }
+            }
+            _messages.emit("Descarga iniciada para $ok canciones")
+        }
+    }
+
     /** Importa una playlist de YouTube: guarda sus canciones y crea la playlist en la biblioteca. */
     fun importYoutubePlaylist(playlist: YtPlaylist) {
         viewModelScope.launch {
