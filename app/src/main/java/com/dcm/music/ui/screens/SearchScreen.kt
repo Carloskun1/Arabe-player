@@ -159,7 +159,10 @@ fun SearchScreen(
     onYtQueue: (YtVideo) -> Unit,
     onYtNext: (YtVideo) -> Unit,
     onYtSave: (YtVideo) -> Unit,
-    onYtImportPlaylist: (YtPlaylist) -> Unit
+    onYtRadio: (YtVideo) -> Unit,
+    onYtImportPlaylist: (YtPlaylist) -> Unit,
+    onYtSuggestions: (String) -> Unit,
+    onYtSuggestionsClear: () -> Unit
 ) {
     var mode by remember { mutableStateOf(0) }
     Column {
@@ -190,7 +193,10 @@ fun SearchScreen(
                 onQueue = onYtQueue,
                 onNext = onYtNext,
                 onSave = onYtSave,
-                onImportPlaylist = onYtImportPlaylist
+                onRadio = onYtRadio,
+                onImportPlaylist = onYtImportPlaylist,
+                onSuggestions = onYtSuggestions,
+                onSuggestionsClear = onYtSuggestionsClear
             )
         }
     }
