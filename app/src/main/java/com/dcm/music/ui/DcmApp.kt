@@ -279,7 +279,10 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                                 vm.saveYtSong(video)
                                 Toast.makeText(context, "Guardada en tu biblioteca", Toast.LENGTH_SHORT).show()
                             },
-                            onYtImportPlaylist = { playlist -> vm.importYoutubePlaylist(playlist) }
+                            onYtRadio = vm::playYoutubeRadio,
+                            onYtImportPlaylist = { playlist -> vm.importYoutubePlaylist(playlist) },
+                            onYtSuggestions = vm::youtubeSuggestions,
+                            onYtSuggestionsClear = { vm.clearYtSuggestions() }
                         )
                     }
                     composable("library") {
