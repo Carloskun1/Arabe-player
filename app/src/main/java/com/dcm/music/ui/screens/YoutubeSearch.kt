@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,7 +65,10 @@ fun YoutubeSearchContent(
     onQueue: (YtVideo) -> Unit,
     onNext: (YtVideo) -> Unit,
     onSave: (YtVideo) -> Unit,
-    onImportPlaylist: (YtPlaylist) -> Unit
+    onRadio: (YtVideo) -> Unit,
+    onImportPlaylist: (YtPlaylist) -> Unit,
+    onSuggestions: (String) -> Unit,
+    onSuggestionsClear: () -> Unit
 ) {
     var tab by remember { mutableStateOf(0) }
     var query by remember(state.query) { mutableStateOf(state.query) }
@@ -73,6 +78,10 @@ fun YoutubeSearchContent(
             focus.clearFocus()
             if (tab == 0) onSearchSongs(query.trim()) else onSearchPlaylists(query.trim())
         }
+    }
+    // Sugerencias en vivo mientras se escribe
+    LaunchedEffect(query, tab) {
+        if (tab == 0 && query.length >= 3) onSuggestions(query) else onSuggestionsClear()
     }
 
     Column {
@@ -131,7 +140,30 @@ fun YoutubeSearchContent(
                 Text("Escribe qué quieres escuchar y pulsa buscar.", color = DcmGray, modifier = Modifier.padding(16.dp))
             }
             (if (tab == 0) state.results else state.playlistResults).isEmpty() -> {
-                Text("Sin resultados.", color = DcmGray, modifier = Modifier.padding(16.dp))
+                // Mientras se escribe sin buscar: mostrar sugerencias
+                if (state.suggestions.isNotEmpty() && !state.searched) {
+                    LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                        items(state.suggestions.size) { index ->
+                            val suggestion = state.suggestions[index]
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        query = suggestion
+                                        doSearch()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Search, null, tint = DcmGray, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(suggestion, color = Color.White, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                } else {
+                    Text("Sin resultados.", color = DcmGray, modifier = Modifier.padding(16.dp))
+                }
             }
             tab == 0 -> {
                 LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -143,7 +175,8 @@ fun YoutubeSearchContent(
                             onDownload = { onDownload(video) },
                             onQueue = { onQueue(video) },
                             onNext = { onNext(video) },
-                            onSave = { onSave(video) }
+                            onSave = { onSave(video) },
+                            onRadio = { onRadio(video) }
                         )
                     }
                 }
@@ -210,7 +243,8 @@ private fun YtRow(
     onDownload: () -> Unit,
     onQueue: () -> Unit,
     onNext: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onRadio: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -244,6 +278,7 @@ private fun YtRow(
                 Icon(Icons.Filled.MoreVert, "Más opciones", tint = DcmGray)
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Iniciar radio (similares)") }, onClick = { menuOpen = false; onRadio() })
                 DropdownMenuItem(text = { Text("Guardar en mi biblioteca") }, onClick = { menuOpen = false; onSave() })
                 DropdownMenuItem(text = { Text("Descargar audio") }, onClick = { menuOpen = false; onDownload() })
                 DropdownMenuItem(text = { Text("Reproducir a continuación") }, onClick = { menuOpen = false; onNext() })
