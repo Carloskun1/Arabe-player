@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -79,6 +80,7 @@ import com.dcm.music.ui.screens.QueueScreen
 import com.dcm.music.ui.screens.SearchScreen
 import com.dcm.music.ui.screens.SettingsScreen
 import com.dcm.music.ui.screens.SoundScreen
+import com.dcm.music.ui.screens.YtLibraryScreen
 import com.dcm.music.ui.theme.DcmBlack
 import com.dcm.music.ui.theme.DcmGray
 import com.dcm.music.ui.theme.DcmNeon
@@ -91,6 +93,7 @@ private val tabs = listOf(
     Tab("search", "Buscar"),
     Tab("library", "Biblioteca"),
     Tab("sound", "Sonido"),
+    Tab("ytlib", "YouTube"),
     Tab("settings", "Ajustes")
 )
 
@@ -141,6 +144,9 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
     val favIds by vm.favoriteIds.collectAsState()
     val sortBy by vm.sortBy.collectAsState()
     val yt by vm.yt.collectAsState()
+    val ytSongs by vm.ytSongs.collectAsState()
+    val ytPlaylists by vm.ytPlaylists.collectAsState()
+    val premium by vm.premium.collectAsState()
     val favSet = remember(favIds) { favIds.toSet() }
 
     var playerOpen by remember { mutableStateOf(false) }
@@ -264,10 +270,16 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                             onPlay = vm::play,
                             yt = yt,
                             onYtSearch = vm::searchYoutube,
+                            onYtSearchPlaylists = vm::searchYoutubePlaylists,
                             onYtPlay = vm::playYoutube,
                             onYtDownload = vm::downloadYoutube,
                             onYtQueue = vm::addYoutubeToQueue,
-                            onYtNext = vm::playYoutubeNext
+                            onYtNext = vm::playYoutubeNext,
+                            onYtSave = { video ->
+                                vm.saveYtSong(video)
+                                Toast.makeText(context, "Guardada en tu biblioteca", Toast.LENGTH_SHORT).show()
+                            },
+                            onYtImportPlaylist = { playlist -> vm.importYoutubePlaylist(playlist) }
                         )
                     }
                     composable("library") {
@@ -289,7 +301,28 @@ fun DcmApp(vm: MainViewModel = viewModel()) {
                         )
                     }
                     composable("sound") { SoundScreen() }
-                    composable("settings") { SettingsScreen(songs.size, loading, vm::refresh, vm::clearRecents) }
+                    composable("ytlib") {
+                        YtLibraryScreen(
+                            songs = ytSongs,
+                            playlists = ytPlaylists,
+                            currentId = ps.mediaId,
+                            onPlaySongs = { vm.playYoutubeSaved(ytSongs) },
+                            onPlaySong = { vm.playYoutubeSaved(listOf(it)) },
+                            onDeleteSong = { vm.removeYtSong(it.id) },
+                            onPlayPlaylist = { pl -> vm.playYoutubeSaved(pl.songs) },
+                            onDeletePlaylist = { vm.deleteYtPlaylist(it.id) }
+                        )
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            songCount = songs.size,
+                            loading = loading,
+                            premium = premium,
+                            onSetPremium = vm::setPremium,
+                            onRescan = vm::refresh,
+                            onClearRecents = vm::clearRecents
+                        )
+                    }
                 }
             }
         }
@@ -339,6 +372,7 @@ private fun tabIcon(route: String): Painter = when (route) {
     "search" -> rememberVectorPainter(Icons.Filled.Search)
     "library" -> painterResource(R.drawable.ic_music_note)
     "sound" -> painterResource(R.drawable.ic_equalizer)
+    "ytlib" -> rememberVectorPainter(Icons.Filled.PlayArrow)
     else -> rememberVectorPainter(Icons.Filled.Settings)
 }
 

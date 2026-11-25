@@ -17,7 +17,11 @@ import com.dcm.music.data.db.FavoriteEntity
 import com.dcm.music.data.db.PlaylistEntity
 import com.dcm.music.data.db.PlaylistSongEntity
 import com.dcm.music.data.db.RecentEntity
+import com.dcm.music.data.db.YtPlaylistEntity
+import com.dcm.music.data.db.YtPlaylistSongEntity
+import com.dcm.music.data.db.YtSongEntity
 import com.dcm.music.data.yt.YouTubeRepository
+import com.dcm.music.data.yt.YtPlaylist
 import com.dcm.music.data.yt.YtSearchState
 import com.dcm.music.data.yt.YtVideo
 import com.dcm.music.playback.PlayerConnection
@@ -39,6 +43,22 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+/** Playlist de YouTube guardada en la biblioteca, lista para la UI. */
+data class YtPlaylistUi(val id: Long, val name: String, val songs: List<YtSongEntity>)
+
+/** Convierte un video en entidad para guardar en la biblioteca. */
+fun YtVideo.toEntity() = YtSongEntity(
+    ytId = id,
+    title = title,
+    uploader = uploader,
+    durationSec = durationSec,
+    thumbnail = thumbnail,
+    addedAt = System.currentTimeMillis()
+)
+
+/** Convierte una canción guardada en video para reproducirla de nuevo. */
+fun YtSongEntity.toVideo() = YtVideo(id = ytId, title = title, uploader = uploader, durationSec = durationSec, thumbnail = thumbnail)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -84,6 +104,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val sortBy: StateFlow<SortBy> =
         prefs.sort.stateIn(viewModelScope, SharingStarted.Eagerly, SortBy.NAME)
+
+    val premium: StateFlow<Boolean> =
+        prefs.premium.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setPremium(value: Boolean) {
+        viewModelScope.launch { prefs.setPremium(value) }
+    }
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
@@ -210,8 +237,98 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playYoutube(list: List<YtVideo>, index: Int) { player.playYoutube(list, index) }
+
+    /** Reproduce canciones guardadas de la biblioteca de YouTube. */
+    fun playYoutubeSaved(songs: List<YtSongEntity>) {
+        if (songs.isEmpty()) return
+        player.playYoutube(songs.map { it.toVideo() }, 0)
+    }
+
     fun addYoutubeToQueue(video: YtVideo) { player.addYoutubeToQueue(video) }
     fun playYoutubeNext(video: YtVideo) { player.playYoutubeNext(video) }
+
+    fun searchYoutubePlaylists(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            _yt.value = YtSearchState(query = query, loading = true)
+            try {
+                val results = withContext(Dispatchers.IO) { YouTubeRepository.searchPlaylists(query) }
+                _yt.value = YtSearchState(query = query, playlistResults = results, searched = true)
+            } catch (e: Exception) {
+                _yt.value = YtSearchState(
+                    query = query,
+                    error = "No se pudo buscar en YouTube. Revisa tu conexión a internet.",
+                    searched = true
+                )
+            }
+        }
+    }
+
+    /** Importa una playlist de YouTube: guarda sus canciones y crea la playlist en la biblioteca. */
+    fun importYoutubePlaylist(playlist: YtPlaylist) {
+        viewModelScope.launch {
+            _messages.emit("Importando «${playlist.title}»…")
+            try {
+                val videos = withContext(Dispatchers.IO) { YouTubeRepository.playlistVideos(playlist.id) }
+                if (videos.isEmpty()) {
+                    _messages.emit("La playlist está vacía o no se pudo leer.")
+                    return@launch
+                }
+                val plId = dao.insertYtPlaylist(YtPlaylistEntity(name = playlist.title, createdAt = System.currentTimeMillis()))
+                videos.forEachIndexed { index, video ->
+                    val rowId = dao.upsertYtSong(video.toEntity())
+                    dao.addYtPlaylistSong(YtPlaylistSongEntity(plId, rowId, index))
+                }
+                _messages.emit("Playlist «${playlist.title}» importada (${videos.size} canciones)")
+            } catch (e: Exception) {
+                _messages.emit("No se pudo importar la playlist: ${e.message ?: "error desconocido"}")
+            }
+        }
+    }
+
+    val ytSongs: StateFlow<List<YtSongEntity>> =
+        dao.ytSongs().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val ytPlaylists: StateFlow<List<YtPlaylistUi>> =
+        combine(dao.ytPlaylists(), dao.allYtPlaylistSongs(), ytSongs) { lists, links, songs ->
+            val map = songs.associateBy { it.id }
+            val byList = links.groupBy { it.playlistId }
+            lists.map { pl ->
+                val songsIn = (byList[pl.id] ?: emptyList())
+                    .sortedBy { it.position }
+                    .mapNotNull { map[it.ytSongId] }
+                YtPlaylistUi(pl.id, pl.name, songsIn)
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun saveYtSong(video: YtVideo) {
+        viewModelScope.launch { dao.upsertYtSong(video.toEntity()) }
+    }
+
+    fun removeYtSong(id: Long) {
+        viewModelScope.launch { dao.deleteYtSongFully(id) }
+    }
+
+    fun deleteYtPlaylist(id: Long) {
+        viewModelScope.launch { dao.deleteYtPlaylistFully(id) }
+    }
+
+    fun addYtSongToPlaylist(playlistId: Long, song: YtSongEntity) {
+        viewModelScope.launch {
+            val position = dao.maxYtPosition(playlistId) + 1
+            dao.addYtPlaylistSong(YtPlaylistSongEntity(playlistId, song.id, position))
+        }
+    }
+
+    fun createYtPlaylist(name: String, videos: List<YtVideo> = emptyList()) {
+        viewModelScope.launch {
+            val plId = dao.insertYtPlaylist(YtPlaylistEntity(name = name.trim(), createdAt = System.currentTimeMillis()))
+            videos.forEachIndexed { index, video ->
+                val rowId = dao.upsertYtSong(video.toEntity())
+                dao.addYtPlaylistSong(YtPlaylistSongEntity(plId, rowId, index))
+            }
+        }
+    }
 
     fun downloadYoutube(video: YtVideo) {
         viewModelScope.launch {

@@ -27,6 +27,7 @@ import com.dcm.music.data.Group
 import com.dcm.music.data.PlaylistUi
 import com.dcm.music.data.Song
 import com.dcm.music.data.folderName
+import com.dcm.music.data.yt.YtPlaylist
 import com.dcm.music.data.yt.YtSearchState
 import com.dcm.music.data.yt.YtVideo
 import com.dcm.music.ui.components.DcmChip
@@ -152,10 +153,13 @@ fun SearchScreen(
     onPlay: (List<Song>, Int) -> Unit,
     yt: YtSearchState,
     onYtSearch: (String) -> Unit,
+    onYtSearchPlaylists: (String) -> Unit,
     onYtPlay: (List<YtVideo>, Int) -> Unit,
     onYtDownload: (YtVideo) -> Unit,
     onYtQueue: (YtVideo) -> Unit,
-    onYtNext: (YtVideo) -> Unit
+    onYtNext: (YtVideo) -> Unit,
+    onYtSave: (YtVideo) -> Unit,
+    onYtImportPlaylist: (YtPlaylist) -> Unit
 ) {
     var mode by remember { mutableStateOf(0) }
     Column {
@@ -176,7 +180,18 @@ fun SearchScreen(
         if (mode == 0) {
             LocalSearchContent(songs, playlists, currentId, onPlay)
         } else {
-            YoutubeSearchContent(yt, currentId, onYtSearch, onYtPlay, onYtDownload, onYtQueue, onYtNext)
+            YoutubeSearchContent(
+                state = yt,
+                currentId = currentId,
+                onSearchSongs = onYtSearch,
+                onSearchPlaylists = onYtSearchPlaylists,
+                onPlay = onYtPlay,
+                onDownload = onYtDownload,
+                onQueue = onYtQueue,
+                onNext = onYtNext,
+                onSave = onYtSave,
+                onImportPlaylist = onYtImportPlaylist
+            )
         }
     }
 }
