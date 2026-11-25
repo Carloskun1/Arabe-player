@@ -7,7 +7,9 @@ import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -22,10 +24,19 @@ data class YtVideo(
     val thumbnail: String?
 )
 
+data class YtPlaylist(
+    val id: String,
+    val title: String,
+    val uploader: String,
+    val thumbnail: String?,
+    val videoCount: Long
+)
+
 data class YtSearchState(
     val query: String = "",
     val loading: Boolean = false,
     val results: List<YtVideo> = emptyList(),
+    val playlistResults: List<YtPlaylist> = emptyList(),
     val error: String? = null,
     val searched: Boolean = false
 )
@@ -62,6 +73,9 @@ object YouTubeRepository {
 
     private fun extractId(url: String): String? = idRegex.find(url)?.groupValues?.get(1)
 
+    private fun playlistId(url: String): String? =
+        Regex("[?&]list=([A-Za-z0-9_-]+)").find(url)?.groupValues?.get(1)
+
     fun search(query: String): List<YtVideo> {
         ensureInit()
         val yt = ServiceList.YouTube
@@ -75,6 +89,45 @@ object YouTubeRepository {
                 YtVideo(
                     id = id,
                     title = item.name,
+                    uploader = item.uploaderName ?: "",
+                    durationSec = item.duration,
+                    thumbnail = item.thumbnails.firstOrNull()?.url
+                )
+            }
+    }
+
+    /** Busca playlists de YouTube (se abre en «Buscar» pestaña YouTube, modo playlists). */
+    fun searchPlaylists(query: String): List<YtPlaylist> {
+        ensureInit()
+        val yt = ServiceList.YouTube
+        val handler = yt.searchQHFactory.fromQuery(query, listOf("playlists"), "")
+        val info = SearchInfo.getInfo(yt, handler)
+        return info.relatedItems.mapNotNull { item ->
+            val pl = item as? PlaylistInfoItem ?: return@mapNotNull null
+            val id = playlistId(pl.url) ?: return@mapNotNull null
+            YtPlaylist(
+                id = id,
+                title = pl.name ?: "",
+                uploader = pl.uploaderName ?: "",
+                thumbnail = pl.thumbnails.firstOrNull()?.url,
+                videoCount = pl.streamCount
+            )
+        }
+    }
+
+    /** Devuelve los videos de una playlist de YouTube, en orden. */
+    fun playlistVideos(playlistId: String): List<YtVideo> {
+        ensureInit()
+        val yt = ServiceList.YouTube
+        val info = PlaylistInfo.getInfo(yt, "https://www.youtube.com/playlist?list=$playlistId")
+        return info.relatedItems
+            .filterIsInstance<StreamInfoItem>()
+            .mapNotNull { item ->
+                val id = extractId(item.url) ?: return@mapNotNull null
+                if (item.duration <= 0) return@mapNotNull null
+                YtVideo(
+                    id = id,
+                    title = item.name ?: "",
                     uploader = item.uploaderName ?: "",
                     durationSec = item.duration,
                     thumbnail = item.thumbnails.firstOrNull()?.url
