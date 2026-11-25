@@ -15,10 +15,10 @@ class Prefs(private val context: Context) {
     private val sortKey = stringPreferencesKey("sort_by")
 
     val sort: Flow<SortBy> = context.dataStore.data.map { prefs ->
-        runCatching { SortArray.valueOf(prefs[sortKey] ?: SortArray.NAME.name) }.getOrDefault(SortArray.NAME)
+        runCatching { SortBy.valueOf(prefs[sortKey] ?: SortBy.NAME.name) }.getOrDefault(SortBy.NAME)
     }
 
-    suspend fun setSort(value: SortArray) {
+    suspend fun setSort(value: SortBy) {
         context.dataStore.edit { it[sortKey] = value.name }
     }
 
