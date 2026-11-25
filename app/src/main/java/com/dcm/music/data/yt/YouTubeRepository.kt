@@ -37,6 +37,7 @@ data class YtSearchState(
     val loading: Boolean = false,
     val results: List<YtVideo> = emptyList(),
     val playlistResults: List<YtPlaylist> = emptyList(),
+    val suggestions: List<String> = emptyList(),
     val error: String? = null,
     val searched: Boolean = false
 )
@@ -89,6 +90,33 @@ object YouTubeRepository {
                 YtVideo(
                     id = id,
                     title = item.name,
+                    uploader = item.uploaderName ?: "",
+                    durationSec = item.duration,
+                    thumbnail = item.thumbnails.firstOrNull()?.url
+                )
+            }
+    }
+
+    /** Sugerencias de búsqueda de YouTube mientras se escribe. */
+    fun suggestions(query: String): List<String> {
+        if (query.isBlank()) return emptyList()
+        ensureInit()
+        val yt = ServiceList.YouTube
+        return yt.suggestionExtractor.suggestionList(query.trim())
+    }
+
+    /** Radio: canciones relacionadas con un video (como «Similares» de YouTube Music). */
+    fun relatedVideos(videoId: String): List<YtVideo> {
+        ensureInit()
+        val info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=$videoId")
+        return info.relatedItems
+            .filterIsInstance<StreamInfoItem>()
+            .mapNotNull { item ->
+                val id = extractId(item.url) ?: return@mapNotNull null
+                if (item.duration <= 0) return@mapNotNull null
+                YtVideo(
+                    id = id,
+                    title = item.name ?: "",
                     uploader = item.uploaderName ?: "",
                     durationSec = item.duration,
                     thumbnail = item.thumbnails.firstOrNull()?.url
