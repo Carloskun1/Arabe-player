@@ -34,6 +34,33 @@ data class PlaylistEntity(
 )
 data class PlaylistSongEntity(val playlistId: Long, val songId: Long, val position: Int)
 
+/** Canción de YouTube guardada en la biblioteca. */
+@Entity(tableName = "yt_songs", indices = [Index(value = ["ytId"], unique = true)])
+data class YtSongEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val ytId: String,
+    val title: String,
+    val uploader: String,
+    val durationSec: Long,
+    val thumbnail: String?,
+    val addedAt: Long
+)
+
+/** Playlist de YouTube guardada (nombre local; los videos se guardan como yt_songs). */
+@Entity(tableName = "yt_playlists")
+data class YtPlaylistEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val createdAt: Long
+)
+
+@Entity(
+    tableName = "yt_playlist_songs",
+    primaryKeys = ["playlistId", "ytSongId"],
+    indices = [Index("playlistId")]
+)
+data class YtPlaylistSongEntity(val playlistId: Long, val ytSongId: Long, val position: Int)
+
 @Dao
 abstract class LibraryDao {
 
@@ -98,11 +125,77 @@ abstract class LibraryDao {
     open suspend fun reorder(playlistId: Long, orderedSongIds: List<Long>) {
         orderedSongIds.forEachIndexed { index, songId -> setPosition(playlistId, songId, index) }
     }
+
+    // ----- Biblioteca de YouTube -----
+
+    @Query("SELECT * FROM yt_songs ORDER BY addedAt DESC")
+    abstract fun ytSongs(): Flow<List<YtSongEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun insertYtSong(item: YtSongEntity): Long
+
+    @Query("SELECT * FROM yt_songs WHERE ytId = :ytId")
+    abstract suspend fun ytSongByYtId(ytId: String): YtSongEntity?
+
+    @Query("DELETE FROM yt_songs WHERE id = :id")
+    abstract suspend fun deleteYtSong(id: Long)
+
+    @Query("DELETE FROM yt_playlist_songs WHERE ytSongId = :id")
+    abstract suspend fun deleteYtPlaylistSongsFor(id: Long)
+
+    @Transaction
+    open suspend fun deleteYtSongFully(id: Long) {
+        deleteYtPlaylistSongsFor(id)
+        deleteYtSong(id)
+    }
+
+    @Query("SELECT * FROM yt_playlists ORDER BY createdAt DESC")
+    abstract fun ytPlaylists(): Flow<List<YtPlaylistEntity>>
+
+    @Query("SELECT * FROM yt_playlist_songs ORDER BY playlistId, position")
+    abstract fun allYtPlaylistSongs(): Flow<List<YtPlaylistSongEntity>>
+
+    @Insert
+    abstract suspend fun insertYtPlaylist(item: YtPlaylistEntity): Long
+
+    @Query("UPDATE yt_playlists SET name = :name WHERE id = :id")
+    abstract suspend fun renameYtPlaylist(id: Long, name: String)
+
+    @Query("DELETE FROM yt_playlists WHERE id = :id")
+    abstract suspend fun deleteYtPlaylist(id: Long)
+
+    @Query("DELETE FROM yt_playlist_songs WHERE playlistId = :id")
+    abstract suspend fun clearYtPlaylistSongs(id: Long)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun addYtPlaylistSong(item: YtPlaylistSongEntity)
+
+    @Query("DELETE FROM yt_playlist_songs WHERE playlistId = :playlistId AND ytSongId = :ytSongId")
+    abstract suspend fun removeYtPlaylistSong(playlistId: Long, ytSongId: Long)
+
+    @Query("SELECT COALESCE(MAX(position), -1) FROM yt_playlist_songs WHERE playlistId = :playlistId")
+    abstract suspend fun maxYtPosition(playlistId: Long): Int
+
+    @Transaction
+    open suspend fun deleteYtPlaylistFully(id: Long) {
+        clearYtPlaylistSongs(id)
+        deleteYtPlaylist(id)
+    }
+
+    /** Guarda una canción de YouTube si no existe y devuelve su id de fila. */
+    @Transaction
+    open suspend fun upsertYtSong(song: YtSongEntity): Long {
+        ytSongByYtId(song.ytId)?.let { return it.id }
+        return insertYtSong(song)
+    }
 }
 
 @Database(
-    entities = [FavoriteEntity::class, RecentEntity::class, PlaylistEntity::class, PlaylistSongEntity::class],
-    version = 1,
+    entities = [
+        FavoriteEntity::class, RecentEntity::class, PlaylistEntity::class, PlaylistSongEntity::class,
+        YtSongEntity::class, YtPlaylistEntity::class, YtPlaylistSongEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -118,7 +211,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "dcm_music.db"
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }
